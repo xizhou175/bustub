@@ -130,7 +130,7 @@ class BufferPoolManager {
   auto GetPinCount(page_id_t page_id) -> std::optional<size_t>;
   auto FindFrameHeaderFromPage(page_id_t page_id) -> std::optional<std::shared_ptr<FrameHeader>>;
   auto FindFrameHeaderFromFrame(frame_id_t frame_id) -> std::optional<std::shared_ptr<FrameHeader>>;
-  auto FindAvailableFrame(page_id_t page_id) -> std::optional<std::shared_ptr<FrameHeader>>;
+  auto FindAvailableFrame(page_id_t page_id, int type) -> std::optional<std::shared_ptr<FrameHeader>>;
 
  private:
   /** @brief The number of frames in the buffer pool. */

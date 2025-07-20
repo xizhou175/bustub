@@ -40,6 +40,8 @@ struct DiskRequest {
 
   /** Callback used to signal to the request issuer when the request has been completed. */
   std::promise<bool> callback_;
+
+  std::optional<std::future<bool>> pre_cond_{std::nullopt};
 };
 
 /**

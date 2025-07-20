@@ -54,19 +54,23 @@ void DiskScheduler::Schedule(DiskRequest r) {
  * return until ~DiskScheduler() is called. At that point you need to make sure that the function does return.
  */
 void DiskScheduler::StartWorkerThread() {
-    while (true) {
-        std::optional<DiskRequest> dq = request_queue_.Get();
-        if (dq == std::nullopt) {
-          break;
-        }
-        if (dq->is_write_) {
-            disk_manager_->WritePage(dq->page_id_, dq->data_);
-        }
-        else {
-            disk_manager_->ReadPage(dq->page_id_, dq->data_);
-        }
-        dq->callback_.set_value(true);
-    }
+  
+  while (true) {
+      std::optional<DiskRequest> dq = request_queue_.Get();
+      if (dq == std::nullopt) {
+        break;
+      }
+      if (dq->pre_cond_.has_value()) {
+        dq->pre_cond_->get();
+      }
+      if (dq->is_write_) {
+          disk_manager_->WritePage(dq->page_id_, dq->data_);
+      }
+      else {
+          disk_manager_->ReadPage(dq->page_id_, dq->data_);
+      }
+      dq->callback_.set_value(true);
+  }
 }
     
 }  // namespace bustub

@@ -160,7 +160,7 @@ TEST(BufferPoolManagerTest, PagePinEasyTest) {
   remove(disk_manager->GetLogFileName());
 }
 
-TEST(BufferPoolManagerTest, DISABLED_PagePinMediumTest) {
+TEST(BufferPoolManagerTest, PagePinMediumTest) {
   auto disk_manager = std::make_shared<DiskManager>(db_fname);
   auto bpm = std::make_shared<BufferPoolManager>(FRAMES, disk_manager.get(), K_DIST);
 
@@ -239,7 +239,7 @@ TEST(BufferPoolManagerTest, DISABLED_PagePinMediumTest) {
   remove(db_fname);
 }
 
-TEST(BufferPoolManagerTest, DISABLED_PageAccessTest) {
+TEST(BufferPoolManagerTest, PageAccessTest) {
   const size_t rounds = 50;
 
   auto disk_manager = std::make_shared<DiskManager>(db_fname);
@@ -277,7 +277,7 @@ TEST(BufferPoolManagerTest, DISABLED_PageAccessTest) {
   thread.join();
 }
 
-TEST(BufferPoolManagerTest, DISABLED_ContentionTest) {
+TEST(BufferPoolManagerTest, ContentionTest) {
   auto disk_manager = std::make_shared<DiskManager>(db_fname);
   auto bpm = std::make_shared<BufferPoolManager>(FRAMES, disk_manager.get(), K_DIST);
 
@@ -319,7 +319,7 @@ TEST(BufferPoolManagerTest, DISABLED_ContentionTest) {
   thread1.join();
 }
 
-TEST(BufferPoolManagerTest, DISABLED_DeadlockTest) {
+TEST(BufferPoolManagerTest, DeadlockTest) {
   auto disk_manager = std::make_shared<DiskManager>(db_fname);
   auto bpm = std::make_shared<BufferPoolManager>(FRAMES, disk_manager.get(), K_DIST);
 
@@ -334,18 +334,21 @@ TEST(BufferPoolManagerTest, DISABLED_DeadlockTest) {
   auto child = std::thread([&]() {
     // Acknowledge that we can begin the test.
     start.store(true);
-
+    
     // Attempt to write to page 0.
     const auto guard0 = bpm->WritePage(pid0);
+
   });
 
   // Wait for the other thread to begin before we start the test.
   while (!start.load()) {
   }
 
+  //std::cout << "here" << std::endl;
   // Make the other thread wait for a bit.
   // This mimics the main thread doing some work while holding the write latch on page 0.
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  //std::cout << "here1" << std::endl;
 
   // If your latching mechanism is incorrect, the next line of code will deadlock.
   // Think about what might happen if you hold a certain "all-encompassing" latch for too long...
@@ -359,7 +362,7 @@ TEST(BufferPoolManagerTest, DISABLED_DeadlockTest) {
   child.join();
 }
 
-TEST(BufferPoolManagerTest, DISABLED_EvictableTest) {
+TEST(BufferPoolManagerTest, EvictableTest) {
   // Test if the evictable status of a frame is always correct.
   const size_t rounds = 1000;
   const size_t num_readers = 8;

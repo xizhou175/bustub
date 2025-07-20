@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buffer/buffer_pool_manager.h"
+#include "storage/disk/disk_scheduler.h"
 
 namespace bustub {
 
@@ -172,9 +173,11 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 }
 
 
-auto BufferPoolManager::FindAvailableFrame(page_id_t page_id) -> std::optional<std::shared_ptr<FrameHeader>> {
+auto BufferPoolManager::FindAvailableFrame(page_id_t page_id, int type) -> std::optional<std::shared_ptr<FrameHeader>> {
+  std::scoped_lock lk(*bpm_latch_);
   std::optional<frame_id_t> fid = std::nullopt;
   std::optional<std::shared_ptr<FrameHeader>> fh;
+  std::optional<std::future<bool>> write_future;
   if (page_table_.count(page_id) != 0) {
     fid = page_table_[page_id];
     fh = FindFrameHeaderFromPage(page_id);
@@ -198,23 +201,32 @@ auto BufferPoolManager::FindAvailableFrame(page_id_t page_id) -> std::optional<s
     return std::nullopt;
   }
 
-  page_table_[page_id] = fid.value();
-
   auto fh_ptr = fh.value();
   if (fh_ptr->page_id_.has_value() || fh_ptr->is_dirty_) {
-    disk_manager_->WritePage(fh_ptr->page_id_.value(), fh_ptr->data_.data());
+    page_table_.erase(fh_ptr->page_id_.value());
+    auto write_promise = disk_scheduler_->CreatePromise();
+    write_future = write_promise.get_future();
+    disk_scheduler_->Schedule({true, fh_ptr->data_.data(), fh_ptr->page_id_.value(), std::move(write_promise)});
+    //disk_manager_->WritePage(fh_ptr->page_id_.value(), fh_ptr->data_.data());
   }
 
-  fh_ptr->rwlatch_.lock();
+  page_table_[page_id] = fid.value();
+  //fh_ptr->rwlatch_.lock();
   fh_ptr->pin_count_++;
   fh_ptr->is_dirty_ = false;
   fh_ptr->page_id_ = page_id;
 
-  disk_manager_->ReadPage(page_id, fh_ptr->data_.data());
+  //disk_manager_->ReadPage(page_id, fh_ptr->data_.data());
+  auto read_promise = disk_scheduler_->CreatePromise();
+  auto read_future = read_promise.get_future();
+  disk_scheduler_->Schedule({false, fh_ptr->data_.data(), page_id, std::move(read_promise), std::move(write_future)});
 
-  fh_ptr->rwlatch_.unlock();
+  read_future.get();
+
+  //fh_ptr->rwlatch_.unlock();
 
   replacer_->RecordAccess(fh_ptr->frame_id_);
+  replacer_->SetEvictable(fh_ptr->frame_id_, false);
 
   return fh;
 }
@@ -259,8 +271,7 @@ auto BufferPoolManager::FindAvailableFrame(page_id_t page_id) -> std::optional<s
  * returns `std::nullopt`, otherwise returns a `WritePageGuard` ensuring exclusive and mutable access to a page's data.
  */
 auto BufferPoolManager::CheckedWritePage(page_id_t page_id, AccessType access_type) -> std::optional<WritePageGuard> {
-  std::scoped_lock lk(*bpm_latch_);
-  auto fh = FindAvailableFrame(page_id);
+  auto fh = FindAvailableFrame(page_id, 2);
   if (!fh.has_value()) {
     return std::nullopt;
   }
@@ -268,6 +279,7 @@ auto BufferPoolManager::CheckedWritePage(page_id_t page_id, AccessType access_ty
   auto replacer = replacer_;
   auto bpm_latch = bpm_latch_;
   auto disk_scheduler = disk_scheduler_;
+
   auto page_guard = WritePageGuard(page_id, fh_ptr, replacer, bpm_latch, disk_scheduler);
 
   return page_guard;
@@ -298,8 +310,7 @@ auto BufferPoolManager::CheckedWritePage(page_id_t page_id, AccessType access_ty
  * returns `std::nullopt`, otherwise returns a `ReadPageGuard` ensuring shared and read-only access to a page's data.
  */
 auto BufferPoolManager::CheckedReadPage(page_id_t page_id, AccessType access_type) -> std::optional<ReadPageGuard> {
-  std::scoped_lock lk(*bpm_latch_);
-  auto fh = FindAvailableFrame(page_id);
+  auto fh = FindAvailableFrame(page_id, 1);
   if (!fh.has_value()) {
     return std::nullopt;
   }
@@ -328,7 +339,7 @@ auto BufferPoolManager::CheckedReadPage(page_id_t page_id, AccessType access_typ
  */
 auto BufferPoolManager::WritePage(page_id_t page_id, AccessType access_type) -> WritePageGuard {
   auto guard_opt = CheckedWritePage(page_id, access_type);
-
+  //std::cout << "page: " << page_id << " frame id: " << guard_opt->frame_->frame_id_ << std::endl;
   if (!guard_opt.has_value()) {
     fmt::println(stderr, "\n`CheckedWritePage` failed to bring in page {}\n", page_id);
     std::abort();

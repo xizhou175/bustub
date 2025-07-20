@@ -338,7 +338,6 @@ void WritePageGuard::Drop() {
   
   if (frame_->pin_count_.load() == 0) {
     replacer_->SetEvictable(frame_->frame_id_, true);
-    //std::cout << "frame: " << frame_->frame_id_ << " set to evictable" << std::endl;
   }
   bpm_latch_->unlock();
 
