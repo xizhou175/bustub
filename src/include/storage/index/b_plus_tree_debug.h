@@ -299,9 +299,12 @@ auto BPLUSTREE_TYPE::ToPrintableBPlusTree(page_id_t root_id) -> PrintableBPlusTr
   // draw internal page
   auto internal_page = root_page_guard.template As<InternalPage>();
   proot.keys_ = internal_page->ToString();
+  //fmt::println("{}", proot.keys_);
+  std::cout << std::endl;
   proot.size_ = 0;
   for (int i = 0; i < internal_page->GetSize(); i++) {
     page_id_t child_id = internal_page->ValueAt(i);
+    //fmt::println("{} {}\n", i, child_id);
     PrintableBPlusTree child_node = ToPrintableBPlusTree(child_id);
     proot.size_ += child_node.size_;
     proot.children_.push_back(child_node);

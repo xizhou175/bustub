@@ -38,6 +38,7 @@
 #include "storage/page/b_plus_tree_header_page.h"
 #include "storage/page/b_plus_tree_internal_page.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/page_guard.h"
 
 namespace bustub {
@@ -116,6 +117,12 @@ class BPlusTree {
   void RemoveFromFile(const std::filesystem::path &file_name);
 
   void BatchOpsFromFile(const std::filesystem::path &file_name);
+
+  auto FindLeafPage(const KeyType& key) -> page_id_t;
+
+  auto Split(BPlusTreePage* page) -> page_id_t;
+
+  auto InsertToParent(page_id_t old_page_id, page_id_t new__page_id, const KeyType& key) -> void;
 
  private:
   void ToGraph(page_id_t page_id, const BPlusTreePage *page, std::ofstream &out);

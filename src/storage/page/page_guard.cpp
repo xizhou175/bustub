@@ -142,7 +142,9 @@ auto ReadPageGuard::IsDirty() const -> bool {
  */
 void ReadPageGuard::Flush() {
   auto promise = disk_scheduler_->CreatePromise();
+  auto future = promise.get_future();
   disk_scheduler_->Schedule({/*is_write=*/true, frame_->GetDataMut(), /*page_id=*/page_id_, std::move(promise)});
+  future.get();
 }
 
 /**

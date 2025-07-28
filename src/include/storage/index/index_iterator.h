@@ -16,7 +16,9 @@
  */
 #pragma once
 #include <utility>
+#include "common/config.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/page_guard.h"
 
 namespace bustub {
 
@@ -26,6 +28,7 @@ INDEX_TEMPLATE_ARGUMENTS
 class IndexIterator {
  public:
   // you may define your own constructor based on your member variables
+  IndexIterator(page_id_t page_id, BufferPoolManager* bpm, int index = 0);
   IndexIterator();
   ~IndexIterator();  // NOLINT
 
@@ -35,12 +38,23 @@ class IndexIterator {
 
   auto operator++() -> IndexIterator &;
 
-  auto operator==(const IndexIterator &itr) const -> bool { UNIMPLEMENTED("TODO(P2): Add implementation."); }
+  auto operator==(const IndexIterator &itr) const -> bool;
 
-  auto operator!=(const IndexIterator &itr) const -> bool { UNIMPLEMENTED("TODO(P2): Add implementation."); }
+  auto operator!=(const IndexIterator &itr) const -> bool;
+
+  auto GetPageId() const -> page_id_t {
+    return cur_page_id_;
+  }
+
+  auto GetCurIdx() const -> int {
+    return cur_idx_;
+  }
 
  private:
   // add your own private member variables here
+  page_id_t cur_page_id_;
+  BufferPoolManager* bpm_;
+  int cur_idx_;
 };
 
 }  // namespace bustub

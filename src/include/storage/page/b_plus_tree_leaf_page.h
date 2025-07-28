@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
@@ -55,13 +56,19 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   BPlusTreeLeafPage() = delete;
   BPlusTreeLeafPage(const BPlusTreeLeafPage &other) = delete;
 
-  void Init(int max_size = LEAF_PAGE_SLOT_CNT);
+  void Init(page_id_t page_id, page_id_t parent_id, int max_size = LEAF_PAGE_SLOT_CNT, int size = 0, page_id_t next_page_id = INVALID_PAGE_ID);
 
   // Helper methods
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
 
+  void Insert(const KeyType& key, const ValueType& value, const KeyComparator& key_comparator);
+  auto KeyIndex(const KeyType& key, const KeyComparator& key_comparator) const -> int;
+  void MoveHalfTo(BPlusTreeLeafPage* page);
+  auto ValueAt(int index) const -> ValueType;
+
+  auto PrintKey() const -> void;
   /**
    * @brief For test only return a string representing all keys in
    * this leaf page formatted as "(key1,key2,key3,...)"
@@ -88,8 +95,8 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   }
 
  private:
-  page_id_t next_page_id_;
   // Array members for page data.
+  page_id_t next_page_id_;
   KeyType key_array_[LEAF_PAGE_SLOT_CNT];
   ValueType rid_array_[LEAF_PAGE_SLOT_CNT];
   // (Spring 2025) Feel free to add more fields and helper functions below if needed

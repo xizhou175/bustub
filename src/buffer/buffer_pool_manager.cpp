@@ -398,7 +398,10 @@ auto BufferPoolManager::FlushPageUnsafe(page_id_t page_id) -> bool {
     return false;
   }
   fh.value()->is_dirty_ = false;
-  disk_manager_->WritePage(page_id, fh.value()->data_.data());
+  auto promise = disk_scheduler_->CreatePromise();
+  auto future = promise.get_future();
+  disk_scheduler_->Schedule({/*is_write=*/true, fh.value()->GetDataMut(), /*page_id=*/page_id, std::move(promise)});
+  future.get();
   return true;
 }
 

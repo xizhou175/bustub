@@ -50,11 +50,12 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   BPlusTreeInternalPage() = delete;
   BPlusTreeInternalPage(const BPlusTreeInternalPage &other) = delete;
 
-  void Init(int max_size = INTERNAL_PAGE_SLOT_CNT);
+  void Init(page_id_t page_id, page_id_t parent_id, int max_size = INTERNAL_PAGE_SLOT_CNT, int size = 1);
 
   auto KeyAt(int index) const -> KeyType;
 
   void SetKeyAt(int index, const KeyType &key);
+  void SetValueAt(int index, const ValueType &value);
 
   /**
    * @param value The value to search for
@@ -64,6 +65,13 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   auto ValueAt(int index) const -> ValueType;
 
+  auto KeyIndex(const KeyType& key, const KeyComparator& key_comparator) const -> int;
+
+  void Insert(const KeyType& key, const ValueType& value, const KeyComparator& key_comparator);
+
+  void MoveHalfTo(BPlusTreeInternalPage* page);
+
+  auto PrintKey() const -> void;
   /**
    * @brief For test only, return a string representing all keys in
    * this internal page, formatted as "(key1,key2,key3,...)"
