@@ -78,7 +78,6 @@ TEST(BPlusTreeTests, InsertTest1NoIterator) {
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid);
   }
-
   std::string graph = tree.DrawBPlusTree();
   fmt::print("{}", graph);
 
@@ -119,10 +118,11 @@ TEST(BPlusTreeTests, InsertTest2) {
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid);
+    std::string graph = tree.DrawBPlusTree();
+    fmt::print("{}", graph);
   } 
 
-  std::string graph = tree.DrawBPlusTree();
-  fmt::print("{}", graph);
+  
 
   std::vector<RID> rids;
   for (auto key : keys) {

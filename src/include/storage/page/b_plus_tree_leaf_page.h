@@ -63,10 +63,17 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
 
+  void Remove(const KeyType& key, const KeyComparator& key_comparator);
   void Insert(const KeyType& key, const ValueType& value, const KeyComparator& key_comparator);
   auto KeyIndex(const KeyType& key, const KeyComparator& key_comparator) const -> int;
   void MoveHalfTo(BPlusTreeLeafPage* page);
+  auto MoveOneTo(int index, B_PLUS_TREE_LEAF_PAGE_TYPE* recipient, int recipient_index) -> KeyType;
+  void MoveAllTo(B_PLUS_TREE_LEAF_PAGE_TYPE* recipient);
+  
   auto ValueAt(int index) const -> ValueType;
+
+  void SetKeyAt(int index, const KeyType& key);
+  void SetValueAt(int index, const ValueType& value);
 
   auto PrintKey() const -> void;
   /**

@@ -15,6 +15,8 @@
 #include <queue>
 #include <string>
 
+#include "buffer/buffer_pool_manager.h"
+#include "fmt/os.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
@@ -23,7 +25,7 @@ namespace bustub {
 #define INTERNAL_PAGE_HEADER_SIZE 12
 #define INTERNAL_PAGE_SLOT_CNT \
   ((BUSTUB_PAGE_SIZE - INTERNAL_PAGE_HEADER_SIZE) / ((int)(sizeof(KeyType) + sizeof(ValueType))))  // NOLINT
-
+#define MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>
 /**
  * Store `n` indexed keys and `n + 1` child pointers (page_id) within internal page.
  * Pointer PAGE_ID(i) points to a subtree in which all keys K satisfy:
@@ -69,7 +71,16 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   void Insert(const KeyType& key, const ValueType& value, const KeyComparator& key_comparator);
 
-  void MoveHalfTo(BPlusTreeInternalPage* page);
+  void MoveHalfTo(BPlusTreeInternalPage* page, BufferPoolManager* bpm);
+
+  void MoveFirstToEnd(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm);
+  void MoveLastToBegin(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm);
+
+  void MoveAllTo(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm);
+
+  void Remove(int index);
+
+  void RemoveFirstKey();
 
   auto PrintKey() const -> void;
   /**

@@ -10,11 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 
+#include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
 #include "common/exception.h"
+#include "fmt/os.h"
+#include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/page_guard.h"
 #include "storage/page/b_plus_tree_internal_page.h"
 
@@ -103,6 +108,14 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyIndex(const KeyType& key, const KeyCompa
 }
 
 INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const -> int {
+  auto it = std::find_if(page_id_array_, page_id_array_ + GetSize(), [&value](const ValueType& a){
+    return a == value;
+  });
+  return std::distance(page_id_array_, it);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType& key, const ValueType& value, const KeyComparator& key_comparator) {
   int index = KeyIndex(key, key_comparator);
   if (index == GetSize()) {
@@ -125,15 +138,87 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType& key, const ValueType&
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage* recipient) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage* recipient, BufferPoolManager* bpm) {
   int start = GetMinSize();
   if (start == 1) {
     start++;
   }
   std::copy(key_array_ + start, key_array_ + GetSize(), recipient->key_array_ + recipient->GetSize());
   std::copy(page_id_array_ + start, page_id_array_ + GetSize(), recipient->page_id_array_ + recipient->GetSize());
+  for (int i = start; i < GetSize(); i++) {
+    page_id_t page_id = page_id_array_[i];
+    WritePageGuard guard = bpm->WritePage(page_id);
+    guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+  }
   recipient->ChangeSizeBy(GetSize() - start);
   SetSize(start);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEnd(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm) {
+  SetKeyAt(0, pull_down_key);
+  recipient->SetKeyAt(recipient->GetSize(), pull_down_key);
+  recipient->SetValueAt(recipient->GetSize(), ValueAt(0));
+
+  page_id_t page_id = ValueAt(0);
+  WritePageGuard guard = bpm->WritePage(page_id);
+  guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+
+  std::move(key_array_ + 2, key_array_ + GetSize(), key_array_ + 1);
+  std::move(page_id_array_ + 1, page_id_array_ + GetSize(), page_id_array_);
+  
+  recipient->ChangeSizeBy(1);
+  ChangeSizeBy(-1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToBegin(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm) {
+  SetKeyAt(GetSize(), pull_down_key);
+  std::move_backward(recipient->key_array_ + 1, recipient->key_array_ + recipient->GetSize(), recipient->key_array_ + recipient->GetSize() + 1);
+  std::move_backward(recipient->page_id_array_, recipient->page_id_array_ + recipient->GetSize(), recipient->page_id_array_ + recipient->GetSize() + 1);
+  recipient->SetKeyAt(1, pull_down_key);
+  recipient->SetValueAt(0, ValueAt(GetSize()-1));
+
+  page_id_t page_id = ValueAt(GetSize()-1);
+  WritePageGuard guard = bpm->WritePage(page_id);
+  guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+  
+  recipient->ChangeSizeBy(1);
+  ChangeSizeBy(-1);
+}
+
+// Method to remove non-first key and value
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
+  std::move(key_array_ + index + 1, key_array_ + GetSize(), key_array_ + index);
+  std::move(page_id_array_ + index + 1, page_id_array_ + GetSize(), page_id_array_ + index);
+ 
+  ChangeSizeBy(-1);
+  return;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveFirstKey() {
+  std::move(key_array_ + 2, key_array_ + GetSize(), key_array_ + 1);
+  std::move(page_id_array_ + 1, page_id_array_ + GetSize(), page_id_array_);
+ 
+  ChangeSizeBy(-1);
+  return;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm) {
+  SetKeyAt(0, pull_down_key);
+  std::copy(key_array_, key_array_ + GetSize(), recipient->key_array_ + recipient->GetSize());
+  std::copy(page_id_array_, page_id_array_ + GetSize(), recipient->page_id_array_ + recipient->GetSize());
+  for (int i = 0; i < GetSize(); i++) {
+    page_id_t page_id = page_id_array_[i];
+    WritePageGuard guard = bpm->WritePage(page_id);
+    guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+  }
+  recipient->ChangeSizeBy(GetSize());
+  SetSize(0);
+  return;
 }
 
 INDEX_TEMPLATE_ARGUMENTS

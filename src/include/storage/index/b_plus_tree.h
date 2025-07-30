@@ -122,7 +122,15 @@ class BPlusTree {
 
   auto Split(BPlusTreePage* page) -> page_id_t;
 
-  auto InsertToParent(page_id_t old_page_id, page_id_t new__page_id, const KeyType& key) -> void;
+  auto InsertToParent(WritePageGuard& old_page_guard, WritePageGuard& new_page_guard, const KeyType& key) -> void;
+
+  void JoinOrRedistribute(WritePageGuard& page_guard);
+
+  void Redistribute(WritePageGuard& node, WritePageGuard& sibling_node, WritePageGuard& parent_guard, int idx, bool);
+
+  void Coalesce(WritePageGuard& node, WritePageGuard& sibling_node, WritePageGuard& parent_guard, int idx);
+
+  bool CheckIfOnlyChild(int index, BPlusTreePage* parent_page);
 
  private:
   void ToGraph(page_id_t page_id, const BPlusTreePage *page, std::ofstream &out);

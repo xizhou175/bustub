@@ -24,7 +24,7 @@ namespace bustub {
 
 using bustub::DiskManagerUnlimitedMemory;
 
-TEST(BPlusTreeTests, DISABLED_DeleteTestNoIterator) {
+TEST(BPlusTreeTests, DeleteTestNoIterator) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -45,6 +45,8 @@ TEST(BPlusTreeTests, DISABLED_DeleteTestNoIterator) {
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid);
   }
+  std::string graph = tree.DrawBPlusTree();
+  fmt::print("{}", graph);
 
   std::vector<RID> rids;
   for (auto key : keys) {
@@ -61,6 +63,8 @@ TEST(BPlusTreeTests, DISABLED_DeleteTestNoIterator) {
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key);
+    //std::string graph = tree.DrawBPlusTree();
+    //fmt::print("{}", graph);
   }
 
   int64_t size = 0;
@@ -91,7 +95,7 @@ TEST(BPlusTreeTests, DISABLED_DeleteTestNoIterator) {
   delete bpm;
 }
 
-TEST(BPlusTreeTests, DISABLED_SequentialEdgeMixTest) {  // NOLINT
+TEST(BPlusTreeTests, SequentialEdgeMixTest) {  // NOLINT
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -135,14 +139,21 @@ TEST(BPlusTreeTests, DISABLED_SequentialEdgeMixTest) {  // NOLINT
     res = TreeValuesMatch<GenericKey<8>, RID, GenericComparator<8>>(tree, inserted, deleted);
     ASSERT_TRUE(res);
 
+    std::string graph = tree.DrawBPlusTree();
+    fmt::print("{}", graph);
+
     keys = {4, 14, 6, 2, 15, -2, -1, 3, 5, 25, 20};
     for (auto key : keys) {
       index_key.SetFromInteger(key);
       tree.Remove(index_key);
       deleted.push_back(key);
       inserted.erase(std::find(inserted.begin(), inserted.end(), key));
+      
       res = TreeValuesMatch<GenericKey<8>, RID, GenericComparator<8>>(tree, inserted, deleted);
+      //std::string graph = tree.DrawBPlusTree();
+      //fmt::print("{}", graph);
       ASSERT_TRUE(res);
+      
     }
   }
 

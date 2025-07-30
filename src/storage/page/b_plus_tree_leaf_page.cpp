@@ -95,6 +95,20 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType& key, const ValueType& val
 }
 
 INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::Remove(const KeyType& key, const KeyComparator& key_comparator) {
+
+  int index = KeyIndex(key, key_comparator);
+  if (key_comparator(KeyAt(index), key) != 0) return;
+
+  std::move(key_array_ + index + 1, key_array_ + GetSize(), key_array_ + index);
+
+  std::move(rid_array_ + index + 1, rid_array_ + GetSize(), rid_array_ + index);
+ 
+  ChangeSizeBy(-1);
+  return;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(B_PLUS_TREE_LEAF_PAGE_TYPE* recipient) {
   int start = GetMinSize();
   //fmt::print("start: {}\n", start);
@@ -103,13 +117,57 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(B_PLUS_TREE_LEAF_PAGE_TYPE* recipien
   recipient->ChangeSizeBy(GetSize() - start);
   SetSize(start);
 }
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(B_PLUS_TREE_LEAF_PAGE_TYPE* recipient) {
+  std::copy(key_array_, key_array_ + GetSize(), recipient->key_array_ + recipient->GetSize());
+  std::copy(rid_array_, rid_array_ + GetSize(), recipient->rid_array_ + recipient->GetSize());
+  recipient->SetNextPageId(GetNextPageId());
+  recipient->ChangeSizeBy(GetSize());
+  SetSize(0);
+  return;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::MoveOneTo(int index, B_PLUS_TREE_LEAF_PAGE_TYPE* recipient, int recipient_index) {
+  KeyType ret = KeyAt(index);
+  if (recipient_index != recipient->GetSize()){
+    std::move_backward(recipient->key_array_ + recipient_index, recipient->key_array_ + GetSize(), recipient->key_array_ + GetSize() + 1);
+    std::move_backward(recipient->rid_array_ + recipient_index, recipient->rid_array_ + GetSize(), recipient->rid_array_ + GetSize() + 1);
+  }
+  recipient->SetKeyAt(recipient_index, KeyAt(index));
+  recipient->SetValueAt(recipient_index, ValueAt(index));
+  std::move(key_array_ + index + 1, key_array_ + GetSize(), key_array_ + index);
+  std::move(rid_array_ + index + 1, rid_array_ + GetSize(), rid_array_ + index);
+  
+  recipient->ChangeSizeBy(1);
+  ChangeSizeBy(-1);
+  return ret;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetKeyAt(int index, const KeyType& key) {
+  if ((size_t)index >= LEAF_PAGE_SLOT_CNT) {
+    throw std::runtime_error("out of bounds");
+  }
+  key_array_[index] = key;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetValueAt(int index, const ValueType& value) {
+  if ((size_t)index >= LEAF_PAGE_SLOT_CNT) {
+    throw std::runtime_error("out of bounds");
+  }
+  rid_array_[index] = value;
+}
+
 /*
  * Helper method to find and return the key associated with input "index" (a.k.a
  * array offset)
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType {
-  if (index >= INTERNAL_PAGE_SLOT_CNT) {
+  if ((size_t)index >= LEAF_PAGE_SLOT_CNT) {
     throw std::runtime_error("out of bounds");
   }
   return key_array_[index];
@@ -117,7 +175,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType {
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType {
-  if (index >= INTERNAL_PAGE_SLOT_CNT) {
+  if ((size_t)index >= LEAF_PAGE_SLOT_CNT) {
     throw std::runtime_error("out of bounds");
   }
   return rid_array_[index];

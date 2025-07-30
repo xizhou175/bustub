@@ -16,6 +16,7 @@
 #include <random>
 
 #include "buffer/buffer_pool_manager.h"
+#include "fmt/base.h"
 #include "gtest/gtest.h"
 #include "storage/disk/disk_manager_memory.h"
 #include "storage/index/b_plus_tree.h"
@@ -61,6 +62,8 @@ TEST(BPlusTreeTests, BasicScaleTest) {  // NOLINT
     index_key.SetFromInteger(key);
     //std::cout << "insert: " << key << std::endl;
     tree.Insert(index_key, rid);
+    //std::string graph = tree.DrawBPlusTree();
+    //fmt::println("{}", graph);
   }
   //std::string graph = tree.DrawBPlusTree();
   //fmt::print("Insertion Finished");
