@@ -12,8 +12,10 @@
 
 #pragma once
 
+#include <condition_variable>
 #include <list>
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -89,6 +91,10 @@ class FrameHeader {
   std::vector<char> data_;
 
   std::optional<page_id_t> page_id_;
+
+  bool io_done_{false};
+  std::mutex m_;
+  std::condition_variable cv_;
 
   /**
    * TODO(P1): You may add any fields or helper functions under here that you think are necessary.
@@ -169,6 +175,8 @@ class BufferPoolManager {
   LogManager *log_manager_ __attribute__((__unused__));
 
   DiskManager *disk_manager_;
+
+
 
   /**
    * TODO(P1): You may add additional private members and helper functions if you find them necessary.

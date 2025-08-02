@@ -41,16 +41,13 @@ TEST(BPlusTreeTests, BasicScaleTest) {  // NOLINT
   page_id_t page_id = bpm->NewPage();
 
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", page_id, bpm, comparator, 2, 3);
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", page_id, bpm, comparator, 3, 5);
   GenericKey<8> index_key;
   RID rid;
 
   int64_t scale = 5000;
   std::vector<int64_t> keys(scale);
   std::iota(keys.begin(), keys.end(), 1);
-
-  //std::sort(keys.begin(), keys.end(), std::greater<int>());
-
   // randomized the insertion order
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
@@ -66,7 +63,8 @@ TEST(BPlusTreeTests, BasicScaleTest) {  // NOLINT
     //fmt::println("{}", graph);
   }
   //std::string graph = tree.DrawBPlusTree();
-  //fmt::print("Insertion Finished");
+  //fmt::println("{}", graph);
+  
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();

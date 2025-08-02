@@ -67,6 +67,26 @@ class Context {
   std::deque<ReadPageGuard> read_set_;
 
   auto IsRootPage(page_id_t page_id) -> bool { return page_id == root_page_id_; }
+
+  template<typename T>
+  auto Drop(T& queue) -> void {
+    while(!queue.empty()) {
+      auto guard = std::move(queue.front());
+      queue.pop_front();
+      guard.Drop();
+    }
+  }
+
+  BPlusTreePage* FindLatchedPage(page_id_t page_id) {
+    BPlusTreePage* page = nullptr;
+    for (auto it = write_set_.rbegin(); it != write_set_.rend(); ++it) {
+      if ((*it).As<BPlusTreePage>()->GetPageId() == page_id) {
+        page = (*it).AsMut<BPlusTreePage>();
+        break;
+      }
+    }
+    return page;
+  }
 };
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
@@ -118,11 +138,13 @@ class BPlusTree {
 
   void BatchOpsFromFile(const std::filesystem::path &file_name);
 
-  auto FindLeafPage(const KeyType& key) -> page_id_t;
+  auto FindLeafPageForRead(const KeyType& key) -> const B_PLUS_TREE_LEAF_PAGE_TYPE*;
 
-  auto Split(BPlusTreePage* page) -> page_id_t;
+  auto FindLeafPageForWrite(const KeyType& key, Context& ctx) -> B_PLUS_TREE_LEAF_PAGE_TYPE*;
 
-  auto InsertToParent(WritePageGuard& old_page_guard, WritePageGuard& new_page_guard, const KeyType& key) -> void;
+  auto Split(BPlusTreePage* page, Context& ctx) -> BPlusTreePage*;
+
+  auto InsertToParent(BPlusTreePage* old_node, BPlusTreePage* new_node, const KeyType& key, Context& ctx) -> void;
 
   void JoinOrRedistribute(WritePageGuard& page_guard);
 
@@ -147,6 +169,8 @@ class BPlusTree {
   int leaf_max_size_;
   int internal_max_size_;
   page_id_t header_page_id_;
+
+  std::shared_mutex root_page_id_latch_;
 };
 
 /**

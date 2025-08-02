@@ -18,6 +18,7 @@
 #include "common/config.h"
 #include "common/exception.h"
 #include "fmt/os.h"
+#include "storage/index/b_plus_tree.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 #include "storage/page/b_plus_tree_page.h"
 #include "storage/page/page_guard.h"
@@ -138,17 +139,24 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType& key, const ValueType&
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage* recipient, BufferPoolManager* bpm) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage* recipient, BufferPoolManager* bpm, Context& ctx) {
   int start = GetMinSize();
   if (start == 1) {
     start++;
   }
+  auto recipient_page_id = recipient->GetPageId();
   std::copy(key_array_ + start, key_array_ + GetSize(), recipient->key_array_ + recipient->GetSize());
   std::copy(page_id_array_ + start, page_id_array_ + GetSize(), recipient->page_id_array_ + recipient->GetSize());
   for (int i = start; i < GetSize(); i++) {
     page_id_t page_id = page_id_array_[i];
-    WritePageGuard guard = bpm->WritePage(page_id);
-    guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+    BPlusTreePage* page = ctx.FindLatchedPage(page_id);
+    if (!page) {
+      WritePageGuard guard = bpm->WritePage(page_id);
+      guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient_page_id);
+    }
+    else {
+      page->SetParentPageId(recipient_page_id);
+    }
   }
   recipient->ChangeSizeBy(GetSize() - start);
   SetSize(start);
@@ -225,9 +233,13 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::PrintKey() const -> void {
   fmt::print(">PrintKey\n");
   for (int i = 1; i < GetSize(); i++){
-    std::cout << KeyAt(i);
+    std::cout << KeyAt(i) << std::endl;
   }
   std::cout << std::endl;
+
+  for (int i = 0; i < GetSize(); i++){
+    std::cout << ValueAt(i) << std::endl;
+  }
   fmt::print("<PrintKey\n");
 }
 

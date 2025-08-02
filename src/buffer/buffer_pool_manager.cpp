@@ -207,6 +207,7 @@ auto BufferPoolManager::FindAvailableFrame(page_id_t page_id, int type) -> std::
     auto write_promise = disk_scheduler_->CreatePromise();
     write_future = write_promise.get_future();
     disk_scheduler_->Schedule({true, fh_ptr->data_.data(), fh_ptr->page_id_.value(), std::move(write_promise)});
+    //if (fh_ptr->page_id_ == 493) fmt::println("page 493 scheduled to write");
     //disk_manager_->WritePage(fh_ptr->page_id_.value(), fh_ptr->data_.data());
   }
 
@@ -220,7 +221,7 @@ auto BufferPoolManager::FindAvailableFrame(page_id_t page_id, int type) -> std::
   auto read_promise = disk_scheduler_->CreatePromise();
   auto read_future = read_promise.get_future();
   disk_scheduler_->Schedule({false, fh_ptr->data_.data(), page_id, std::move(read_promise), std::move(write_future)});
-
+  //if (page_id == 493) fmt::println("page 493 scheduled to read");
   read_future.get();
 
   //fh_ptr->rwlatch_.unlock();

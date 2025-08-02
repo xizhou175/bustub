@@ -77,9 +77,10 @@ TEST(BPlusTreeTests, InsertTest1NoIterator) {
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid);
+    std::string graph = tree.DrawBPlusTree();
+    fmt::print("{}", graph);
   }
-  std::string graph = tree.DrawBPlusTree();
-  fmt::print("{}", graph);
+  
 
   bool is_present;
   std::vector<RID> rids;

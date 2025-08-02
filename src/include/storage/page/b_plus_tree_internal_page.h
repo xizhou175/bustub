@@ -21,6 +21,8 @@
 
 namespace bustub {
 
+class Context;
+
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
 #define INTERNAL_PAGE_HEADER_SIZE 12
 #define INTERNAL_PAGE_SLOT_CNT \
@@ -71,7 +73,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   void Insert(const KeyType& key, const ValueType& value, const KeyComparator& key_comparator);
 
-  void MoveHalfTo(BPlusTreeInternalPage* page, BufferPoolManager* bpm);
+  void MoveHalfTo(BPlusTreeInternalPage* page, BufferPoolManager* bpm, Context& ctx);
 
   void MoveFirstToEnd(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm);
   void MoveLastToBegin(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm);

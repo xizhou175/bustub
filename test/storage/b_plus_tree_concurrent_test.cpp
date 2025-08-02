@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <functional>
 #include <future>  // NOLINT
+#include <mutex>
 #include <thread>  // NOLINT
 
 #include "buffer/buffer_pool_manager.h"
@@ -26,6 +27,7 @@
 namespace bustub {
 
 using bustub::DiskManagerUnlimitedMemory;
+std::mutex print_m;
 
 // helper function to launch multiple threads
 template <typename... Args>
@@ -54,7 +56,13 @@ void InsertHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, con
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree->Insert(index_key, rid);
+    //std::scoped_lock lk(print_m);
+    //std::thread::id current_thread_id = std::this_thread::get_id();
+    //std::cout << "Current thread ID: " << current_thread_id;
+    //std::string graph = tree->DrawBPlusTree();
+    //fmt::print("{}\n", graph);
   }
+  
 }
 
 // helper function to seperate insert
@@ -65,10 +73,16 @@ void InsertHelperSplit(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree
 
   for (auto key : keys) {
     if (static_cast<uint64_t>(key) % total_threads == thread_itr) {
+      //std::cout << thread_itr << std::endl;
       int64_t value = key & 0xFFFFFFFF;
       rid.Set(static_cast<int32_t>(key >> 32), value);
       index_key.SetFromInteger(key);
       tree->Insert(index_key, rid);
+      //std::scoped_lock lk(print_m);
+      //std::thread::id current_thread_id = std::this_thread::get_id();
+      //std::cout << "Current thread ID: " << current_thread_id;
+      //std::string graph = tree->DrawBPlusTree();
+      //fmt::print("{}\n", graph);
     }
   }
 }
@@ -175,6 +189,7 @@ void InsertTest1Call() {
 
 void InsertTest2Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
+    std::cout << iter << std::endl;
     // create KeyComparator and index schema
     auto key_schema = ParseCreateStatement("a bigint");
     GenericComparator<8> comparator(key_schema.get());
@@ -195,6 +210,7 @@ void InsertTest2Call() {
       keys.push_back(key);
     }
     LaunchParallelTest(2, InsertHelperSplit, &tree, keys, 2);
+    //InsertHelperSplit(&tree, keys, 1, 0);
 
     std::vector<RID> rids;
     GenericKey<8> index_key;
@@ -443,11 +459,11 @@ void MixTest2Call() {
   }
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {  // NOLINT
+TEST(BPlusTreeConcurrentTest, InsertTest1) {  // NOLINT
   InsertTest1Call();
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {  // NOLINT
+TEST(BPlusTreeConcurrentTest, InsertTest2) {  // NOLINT
   InsertTest2Call();
 }
 
