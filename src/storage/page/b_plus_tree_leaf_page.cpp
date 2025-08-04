@@ -98,7 +98,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Remove(const KeyType& key, const KeyComparator& key_comparator) {
 
   int index = KeyIndex(key, key_comparator);
-  if (key_comparator(KeyAt(index), key) != 0) return;
+  if (index >= GetSize() || key_comparator(KeyAt(index), key) != 0) return;
 
   std::move(key_array_ + index + 1, key_array_ + GetSize(), key_array_ + index);
 

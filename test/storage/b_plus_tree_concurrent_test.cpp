@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <chrono>  // NOLINT
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <functional>
@@ -27,7 +28,7 @@
 namespace bustub {
 
 using bustub::DiskManagerUnlimitedMemory;
-std::mutex print_m;
+//std::mutex print_m;
 
 // helper function to launch multiple threads
 template <typename... Args>
@@ -58,7 +59,7 @@ void InsertHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, con
     tree->Insert(index_key, rid);
     //std::scoped_lock lk(print_m);
     //std::thread::id current_thread_id = std::this_thread::get_id();
-    //std::cout << "Current thread ID: " << current_thread_id;
+    //std::cout << "Current thread ID: " << current_thread_id << " inserted " << key << std::endl;
     //std::string graph = tree->DrawBPlusTree();
     //fmt::print("{}\n", graph);
   }
@@ -93,8 +94,60 @@ void DeleteHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, con
   GenericKey<8> index_key;
 
   for (auto key : remove_keys) {
+    //fmt::println("key: {}  Current thread ID: {}", key, thread_itr );
     index_key.SetFromInteger(key);
     tree->Remove(index_key);
+    //std::scoped_lock lk(print_m);
+    //std::thread::id current_thread_id = std::this_thread::get_id();
+    //std::string graph = tree->DrawBPlusTree();
+    //fmt::print("{}\n", graph);
+    //std::scoped_lock lk(print_m);
+    //std::thread::id current_thread_id = std::this_thread::get_id();
+    //std::cout << "Current thread ID: " << current_thread_id << " deleted " << key << std::endl;
+    //std::string graph = tree->DrawBPlusTree();
+    //fmt::print("{}\n", graph);
+  }
+}
+
+// helper function to delete
+void MixHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, const std::vector<int64_t> &insert_keys, const std::vector<int64_t> &remove_keys ) {
+  
+  
+
+  for (size_t i = 0; i < insert_keys.size(); i++) {
+    //fmt::println("key: {}  Current thread ID: {}", key, thread_itr );
+    auto remove_key = remove_keys[i];
+    auto insert_key = insert_keys[i];
+    
+    auto task1 = [&](){
+      GenericKey<8> index_key;
+      RID rid;
+      index_key.SetFromInteger(insert_key);
+      int64_t value = insert_key & 0xFFFFFFFF;
+      rid.Set(static_cast<int32_t>(insert_key >> 32), value);
+      tree->Insert(index_key, rid);
+    };
+
+    auto task2 = [&](){
+      GenericKey<8> index_key;
+      index_key.SetFromInteger(remove_key);
+      tree->Remove(index_key);
+    };
+
+    std::vector<std::thread> threads;
+    size_t num_threads = 2;
+    //for (size_t i = 0; i < num_threads; i++) {
+      threads.emplace_back(task1);
+      threads.emplace_back(task2);
+    //}
+    for (size_t i = 0; i < num_threads; i++) {
+      threads[i].join();
+    }
+
+    fmt::println("remove: {}  insert: {}", remove_key, insert_key);
+    
+    std::string graph = tree->DrawBPlusTree();
+    fmt::print("{}\n", graph);
   }
 }
 
@@ -263,6 +316,9 @@ void DeleteTest1Call() {
     std::vector<int64_t> keys = {1, 2, 3, 4, 5};
     InsertHelper(&tree, keys);
 
+    //std::string graph = tree.DrawBPlusTree();
+    //fmt::print("{}\n", graph);
+
     std::vector<int64_t> remove_keys = {1, 5, 3, 4};
     LaunchParallelTest(2, DeleteHelper, &tree, remove_keys);
 
@@ -334,6 +390,7 @@ void DeleteTest2Call() {
 
 void MixTest1Call() {
   for (size_t iter = 0; iter < MIXTEST_NUM_ITERS; iter++) {
+    std::cout << "iter: " << iter << std::endl;
     // create KeyComparator and index schema
     auto key_schema = ParseCreateStatement("a bigint");
     GenericComparator<8> comparator(key_schema.get());
@@ -361,7 +418,10 @@ void MixTest1Call() {
     }
     // Insert all the keys to delete
     InsertHelper(&tree, for_delete);
-
+    /*{
+      auto graph = tree.DrawBPlusTree();
+      fmt::println("{}\n", graph);
+    }*/
     auto insert_task = [&](int tid) { InsertHelper(&tree, for_insert); };
     auto delete_task = [&](int tid) { DeleteHelper(&tree, for_delete); };
     std::vector<std::function<void(int)>> tasks;
@@ -376,6 +436,10 @@ void MixTest1Call() {
       threads[i].join();
     }
 
+    /*{
+      auto graph = tree.DrawBPlusTree();
+      fmt::println("{}\n", graph);
+    }*/
     int64_t size = 0;
 
     for (auto iter = tree.Begin(); iter != tree.End(); ++iter) {
@@ -395,6 +459,7 @@ void MixTest1Call() {
 
 void MixTest2Call() {
   for (size_t iter = 0; iter < MIXTEST_NUM_ITERS; iter++) {
+    std::cout << "iter: " << iter << std::endl;
     // create KeyComparator and index schema
     auto key_schema = ParseCreateStatement("a bigint");
     GenericComparator<8> comparator(key_schema.get());
@@ -467,19 +532,19 @@ TEST(BPlusTreeConcurrentTest, InsertTest2) {  // NOLINT
   InsertTest2Call();
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest1) {  // NOLINT
+TEST(BPlusTreeConcurrentTest, DeleteTest1) {  // NOLINT
   DeleteTest1Call();
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest2) {  // NOLINT
+TEST(BPlusTreeConcurrentTest, DeleteTest2) {  // NOLINT
   DeleteTest2Call();
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_MixTest1) {  // NOLINT
+TEST(BPlusTreeConcurrentTest, MixTest1) {  // NOLINT
   MixTest1Call();
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_MixTest2) {  // NOLINT
+TEST(BPlusTreeConcurrentTest, MixTest2) {  // NOLINT
   MixTest2Call();
 }
 }  // namespace bustub

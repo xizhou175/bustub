@@ -163,14 +163,21 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage* recipient
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEnd(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEnd(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm, Context& ctx) {
   SetKeyAt(0, pull_down_key);
   recipient->SetKeyAt(recipient->GetSize(), pull_down_key);
   recipient->SetValueAt(recipient->GetSize(), ValueAt(0));
 
   page_id_t page_id = ValueAt(0);
-  WritePageGuard guard = bpm->WritePage(page_id);
-  guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+  auto* page = ctx.FindLatchedPage(page_id);
+  if (!page) {
+    WritePageGuard guard = bpm->WritePage(page_id);
+    guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+    ctx.write_set_.push_back(std::move(guard));
+  }
+  else {
+    page->SetParentPageId(recipient->GetPageId());
+  }
 
   std::move(key_array_ + 2, key_array_ + GetSize(), key_array_ + 1);
   std::move(page_id_array_ + 1, page_id_array_ + GetSize(), page_id_array_);
@@ -180,7 +187,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEnd(BPlusTreeInternalPage* recip
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToBegin(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToBegin(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm, Context& ctx) {
   SetKeyAt(GetSize(), pull_down_key);
   std::move_backward(recipient->key_array_ + 1, recipient->key_array_ + recipient->GetSize(), recipient->key_array_ + recipient->GetSize() + 1);
   std::move_backward(recipient->page_id_array_, recipient->page_id_array_ + recipient->GetSize(), recipient->page_id_array_ + recipient->GetSize() + 1);
@@ -188,8 +195,15 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToBegin(BPlusTreeInternalPage* reci
   recipient->SetValueAt(0, ValueAt(GetSize()-1));
 
   page_id_t page_id = ValueAt(GetSize()-1);
-  WritePageGuard guard = bpm->WritePage(page_id);
-  guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+  auto* page = ctx.FindLatchedPage(page_id);
+  if (!page) {
+    WritePageGuard guard = bpm->WritePage(page_id);
+    guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+    ctx.write_set_.push_back(std::move(guard));
+  }
+  else {
+    page->SetParentPageId(recipient->GetPageId());
+  }
   
   recipient->ChangeSizeBy(1);
   ChangeSizeBy(-1);
@@ -215,14 +229,22 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveFirstKey() {
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm, Context& ctx) {
   SetKeyAt(0, pull_down_key);
   std::copy(key_array_, key_array_ + GetSize(), recipient->key_array_ + recipient->GetSize());
   std::copy(page_id_array_, page_id_array_ + GetSize(), recipient->page_id_array_ + recipient->GetSize());
+  auto recipient_page_id = recipient->GetPageId();
   for (int i = 0; i < GetSize(); i++) {
     page_id_t page_id = page_id_array_[i];
-    WritePageGuard guard = bpm->WritePage(page_id);
-    guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient->GetPageId());
+    BPlusTreePage* page = ctx.FindLatchedPage(page_id);
+    if (!page) {
+      WritePageGuard guard = bpm->WritePage(page_id);
+      guard.AsMut<BPlusTreePage>()->SetParentPageId(recipient_page_id);
+      ctx.write_set_.push_back(std::move(guard));
+    }
+    else {
+      page->SetParentPageId(recipient_page_id);
+    }
   }
   recipient->ChangeSizeBy(GetSize());
   SetSize(0);

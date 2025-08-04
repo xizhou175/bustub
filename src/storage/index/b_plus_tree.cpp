@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <mutex>
 #include "common/config.h"
 #include "fmt/base.h"
 #include "fmt/chrono.h"
@@ -26,6 +27,7 @@
 #include "storage/page/page_guard.h"
 
 namespace bustub {
+  std::mutex print_m;
 
 INDEX_TEMPLATE_ARGUMENTS
 BPLUSTREE_TYPE::BPlusTree(std::string name, page_id_t header_page_id, BufferPoolManager *buffer_pool_manager,
@@ -39,6 +41,10 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, page_id_t header_page_id, BufferPool
   WritePageGuard guard = bpm_->WritePage(header_page_id_);
   auto root_page = guard.AsMut<BPlusTreeHeaderPage>();
   root_page->root_page_id_ = INVALID_PAGE_ID;
+
+  if (leaf_max_size_ == LEAF_PAGE_SLOT_CNT) leaf_max_size_-=2;
+  if (internal_max_size_ == INTERNAL_PAGE_SLOT_CNT) internal_max_size_-=2;
+
 }
 
 /**
@@ -189,20 +195,21 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value) -> bool 
 
     InsertToParent(leaf_page, new_leaf_page, risen_key, ctx);
   }
-  root_page_id_latch_.unlock();
+  
   ctx.Drop(ctx.write_set_);
+  /*std::scoped_lock lk(print_m);
+  fmt::println("Inserted {}", key.ToString());
+  auto graph = DrawBPlusTree();
+  fmt::println("{}", graph);*/
+  root_page_id_latch_.unlock();
+  
   return true;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::InsertToParent(BPlusTreePage* old_node, BPlusTreePage* new_node, const KeyType &key, Context& ctx) -> void {
-  // using MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
-  //fmt::println(">InsertToParent(page id={})", old_node->GetPageId());
   WritePageGuard parent_guard;
-  // WritePageGuard old_page_guard = bpm_->WritePage(old_page_id);
-  //BPlusTreePage *old_node = old_page_guard.AsMut<BPlusTreePage>();
-  // WritePageGuard new_page_guard = bpm_->WritePage(new_page_id);
-  //BPlusTreePage *new_node = new_page_guard.AsMut<BPlusTreePage>();
+  
   auto new_page_id = new_node->GetPageId();
   auto old_page_id = old_node->GetPageId();
 
@@ -312,29 +319,52 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key) {
   // Declaration of context instance.
   Context ctx;
+  root_page_id_latch_.lock();
   if (IsEmpty()) {
+    root_page_id_latch_.unlock();
+    ctx.Drop(ctx.write_set_);
     return;
   }
   //std::cout << "Remove" << std::endl;
   auto leaf_page = FindLeafPageForWrite(key, ctx);
-  if (leaf_page == nullptr) return;
+  if (leaf_page == nullptr) {
+    root_page_id_latch_.unlock();
+    ctx.Drop(ctx.write_set_);
+    return;
+  }
   //std::cout << "leaf page " << leaf_page_id << std::endl;
   leaf_page->Remove(key, comparator_);
   if (leaf_page->GetSize() >= leaf_page->GetMinSize()) {
+    ctx.Drop(ctx.write_set_);
+    root_page_id_latch_.unlock();
     return;
   }
-  //JoinOrRedistribute(guard);
+  JoinOrRedistribute(leaf_page, ctx);
+  ctx.Drop(ctx.write_set_);
+  /*std::scoped_lock lk(print_m);
+  fmt::println("Removed {}", key.ToString());
+  auto graph = DrawBPlusTree();
+  fmt::println("{}", graph);*/
+  root_page_id_latch_.unlock();
 }
+  
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::JoinOrRedistribute(WritePageGuard &page_guard) {
-  BPlusTreePage *page = page_guard.AsMut<BPlusTreePage>();
+void BPLUSTREE_TYPE::JoinOrRedistribute(BPlusTreePage* page, Context& ctx) {
+  //BPlusTreePage *page = page_guard.AsMut<BPlusTreePage>();
   if (page->IsRootPage()) {
     if (!page->IsLeafPage() && page->GetSize() == 1) {
-      auto* root_page = page_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
+      auto* root_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
       auto child_page_id = root_page->ValueAt(0);
-      WritePageGuard child_page_guard = bpm_->WritePage(child_page_id);
-      auto* child_page = child_page_guard.AsMut<BPlusTreePage>();
+
+      BPlusTreePage* child_page = nullptr;
+      child_page = ctx.FindLatchedPage(child_page_id);
+      if (!child_page) {
+        auto child_page_guard = bpm_->WritePage(child_page_id);
+        child_page = child_page_guard.template AsMut<BPlusTreePage>();
+        ctx.write_set_.push_back(std::move(child_page_guard));
+      }
+
       header_page_id_ = child_page->GetPageId();
       child_page->SetParentPageId(INVALID_PAGE_ID);
     }
@@ -347,42 +377,57 @@ void BPLUSTREE_TYPE::JoinOrRedistribute(WritePageGuard &page_guard) {
   if (page->GetSize() >= page->GetMinSize()) {
     return;
   }
+
   page_id_t parent_page_id = page->GetParentPageId();
-  WritePageGuard parent_guard = bpm_->WritePage(parent_page_id);
-  auto *parent_page = parent_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
+  auto* parent = ctx.FindLatchedPage(parent_page_id);
+  auto *parent_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent);
   int index = parent_page->ValueIndex(page->GetPageId());
   
+  //parent_page->PrintKey();
+
   // check whether this parent has only one child, tihs situation should not be allowed, but in case.
-  if (CheckIfOnlyChild(index, parent_page)) {
-    fmt::println("only child for page {}", parent_page_id);
-    return;
-  }
+  //if (CheckIfOnlyChild(index, parent_page)) {
+  //  fmt::println("only child for page {}", parent_page_id);
+  //  return;
+  //}
 
   if (index >= 0 && index != parent_page->GetSize() - 1) {
     page_id_t sibling_page_id = parent_page->ValueAt(index + 1);
     //fmt::println("index: {} page_id: {} sibling_page: {}", index, page->GetPageId(), sibling_page_id);
-    WritePageGuard sibling_page_guard = bpm_->WritePage(sibling_page_id);
-    auto *sibling_page = sibling_page_guard.AsMut<BPlusTreePage>();
+    BPlusTreePage* sibling_page = nullptr;
+    sibling_page = ctx.FindLatchedPage(sibling_page_id);
+    if (!sibling_page) {
+      WritePageGuard sibling_page_guard = bpm_->WritePage(sibling_page_id);
+      sibling_page = sibling_page_guard.AsMut<BPlusTreePage>();
+      ctx.write_set_.push_back(std::move(sibling_page_guard));
+    }
+    
     if (sibling_page->GetSize() > sibling_page->GetMinSize()) {
       // redistribute
-      Redistribute(page_guard, sibling_page_guard, parent_guard, index, false);
+      Redistribute(page, sibling_page, parent_page, index, false, ctx);
       return;
     }
 
     // We have to coalesce
-    Coalesce(page_guard, sibling_page_guard, parent_guard, index + 1);
+    Coalesce(page, sibling_page, parent_page, index + 1, ctx);
     return;
   }
   if (index == parent_page->GetSize() - 1) {
     page_id_t sibling_page_id = parent_page->ValueAt(index - 1);
-    WritePageGuard sibling_page_guard = bpm_->WritePage(sibling_page_id);
-    auto *sibling_page = sibling_page_guard.AsMut<BPlusTreePage>();
+
+    BPlusTreePage* sibling_page = nullptr;
+    sibling_page = ctx.FindLatchedPage(sibling_page_id);
+    if (!sibling_page) {
+      WritePageGuard sibling_page_guard = bpm_->WritePage(sibling_page_id);
+      sibling_page = sibling_page_guard.AsMut<BPlusTreePage>();
+      ctx.write_set_.push_back(std::move(sibling_page_guard));
+    }
     if (sibling_page->GetSize() > sibling_page->GetMinSize()) {
       // redistribute
-      Redistribute(page_guard, sibling_page_guard, parent_guard, index, true);
+      Redistribute(page, sibling_page, parent_page, index, true, ctx);
       return;
     }
-    Coalesce(sibling_page_guard, page_guard, parent_guard, index);
+    Coalesce(sibling_page, page, parent_page, index, ctx);
     return;
   }
   
@@ -403,39 +448,42 @@ bool BPLUSTREE_TYPE::CheckIfOnlyChild(int index, BPlusTreePage* parent_page) {
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Coalesce(WritePageGuard& guard, WritePageGuard& sibling_guard, WritePageGuard& parent_guard, int index) {
-  MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_page = parent_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
+void BPLUSTREE_TYPE::Coalesce(BPlusTreePage* page, BPlusTreePage* sibling_page, BPlusTreePage* parent, int index, Context& ctx) {
+  MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent);
   const KeyType pull_down_key = parent_page->KeyAt(index);
-  BPlusTreePage *page = guard.AsMut<BPlusTreePage>();
+  //BPlusTreePage *page = guard.AsMut<BPlusTreePage>();
   if (page->IsLeafPage()) {
-    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_page = guard.AsMut<B_PLUS_TREE_LEAF_PAGE_TYPE>();
-    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_sibling_page = sibling_guard.AsMut<B_PLUS_TREE_LEAF_PAGE_TYPE>();
+    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_page = static_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
+    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_sibling_page = static_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(sibling_page);
     //leaf_sibling_page->PrintKey();
     leaf_sibling_page->MoveAllTo(leaf_page);
     //leaf_page->PrintKey();
   }
   else {
-    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_page = guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
-    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_sibling_page = sibling_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
+    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
+    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_sibling_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(sibling_page);
     //internal_sibling_page->PrintKey();
-    internal_sibling_page->MoveAllTo(internal_page, pull_down_key, bpm_);
+    internal_sibling_page->MoveAllTo(internal_page, pull_down_key, bpm_, ctx);
     
     //internal_page->PrintKey();
   }
-  guard.Drop();
-  sibling_guard.Drop();
-  parent_page->Remove(index);
+  //std::cout << "before" << std::endl;
   //parent_page->PrintKey();
-  JoinOrRedistribute(parent_guard);
+  parent_page->Remove(index);
+  //std::cout << "index: " << index << std::endl;
+  //std::cout << "after" << std::endl;
+  //parent_page->PrintKey();
+  //parent_page->PrintKey();
+  JoinOrRedistribute(parent_page, ctx);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Redistribute(WritePageGuard& guard, WritePageGuard& sibling_guard, WritePageGuard& parent_guard, int index, bool from_prev) {
-  BPlusTreePage *page = guard.AsMut<BPlusTreePage>();
+void BPLUSTREE_TYPE::Redistribute(BPlusTreePage* page, BPlusTreePage* sibling_page, BPlusTreePage* parent, int index, bool from_prev, Context& ctx) {
+  //BPlusTreePage *page = guard.AsMut<BPlusTreePage>();
   if (page->IsLeafPage()) {
-    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_page = guard.AsMut<B_PLUS_TREE_LEAF_PAGE_TYPE>();
-    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_sibling_page = sibling_guard.AsMut<B_PLUS_TREE_LEAF_PAGE_TYPE>();
-    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_page = parent_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
+    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_page = static_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
+    B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_sibling_page = static_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(sibling_page);
+    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent);
     if (!from_prev){
       leaf_sibling_page->MoveOneTo(0, leaf_page, leaf_page->GetSize());
       parent_page->SetKeyAt(index+1, leaf_sibling_page->KeyAt(0));
@@ -446,23 +494,21 @@ void BPLUSTREE_TYPE::Redistribute(WritePageGuard& guard, WritePageGuard& sibling
     }
   }
   else {
-    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_page = guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
-    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_sibling_page = sibling_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
-    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_page = parent_guard.AsMut<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE>();
+    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(page);
+    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE *internal_sibling_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(sibling_page);
+    MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_page = static_cast<MY_B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent);
     if (!from_prev){
       auto pull_down_key = parent_page->KeyAt(index + 1);
       parent_page->SetKeyAt(index+1, internal_sibling_page->KeyAt(1));
-      internal_sibling_page->MoveFirstToEnd(internal_page, pull_down_key, bpm_);
+      internal_sibling_page->MoveFirstToEnd(internal_page, pull_down_key, bpm_, ctx);
     }
     else {
       auto pull_down_key = parent_page->KeyAt(index);
-      internal_sibling_page->MoveLastToBegin(internal_page, pull_down_key, bpm_);
-      parent_page->SetKeyAt(index, internal_page->KeyAt(1));
+      parent_page->SetKeyAt(index, internal_sibling_page->KeyAt(internal_sibling_page->GetSize()-1));
+      internal_sibling_page->MoveLastToBegin(internal_page, pull_down_key, bpm_, ctx);
     }
     
   }
-  guard.Drop();
-  sibling_guard.Drop();
 }
 
 /*****************************************************************************

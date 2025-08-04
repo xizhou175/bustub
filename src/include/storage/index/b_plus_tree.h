@@ -146,11 +146,11 @@ class BPlusTree {
 
   auto InsertToParent(BPlusTreePage* old_node, BPlusTreePage* new_node, const KeyType& key, Context& ctx) -> void;
 
-  void JoinOrRedistribute(WritePageGuard& page_guard);
+  void JoinOrRedistribute(BPlusTreePage* page, Context& ctx);
 
-  void Redistribute(WritePageGuard& node, WritePageGuard& sibling_node, WritePageGuard& parent_guard, int idx, bool);
+  void Redistribute(BPlusTreePage* node, BPlusTreePage* sibling_node, BPlusTreePage* parent_node, int idx, bool, Context& ctx);
 
-  void Coalesce(WritePageGuard& node, WritePageGuard& sibling_node, WritePageGuard& parent_guard, int idx);
+  void Coalesce(BPlusTreePage* node, BPlusTreePage* sibling_node, BPlusTreePage* parent_node, int idx, Context& ctx);
 
   bool CheckIfOnlyChild(int index, BPlusTreePage* parent_page);
 

@@ -75,10 +75,10 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   void MoveHalfTo(BPlusTreeInternalPage* page, BufferPoolManager* bpm, Context& ctx);
 
-  void MoveFirstToEnd(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm);
-  void MoveLastToBegin(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm);
+  void MoveFirstToEnd(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm, Context& ctx);
+  void MoveLastToBegin(BPlusTreeInternalPage*, const KeyType&, BufferPoolManager* bpm, Context& ctx);
 
-  void MoveAllTo(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm);
+  void MoveAllTo(BPlusTreeInternalPage* recipient, const KeyType& pull_down_key, BufferPoolManager* bpm, Context& ctx);
 
   void Remove(int index);
 
