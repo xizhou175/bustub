@@ -145,7 +145,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage* recipient
     start++;
   }
   auto recipient_page_id = recipient->GetPageId();
+  //fmt::println("{} {}", start, GetSize());
   std::copy(key_array_ + start, key_array_ + GetSize(), recipient->key_array_ + recipient->GetSize());
+  
   std::copy(page_id_array_ + start, page_id_array_ + GetSize(), recipient->page_id_array_ + recipient->GetSize());
   for (int i = start; i < GetSize(); i++) {
     page_id_t page_id = page_id_array_[i];

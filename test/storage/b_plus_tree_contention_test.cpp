@@ -63,6 +63,7 @@ size_t BPlusTreeLockBenchmarkCall(size_t num_threads, bool with_global_mutex) {
         mtx.lock();
       }
       tree.Insert(index_key, rid);
+      //std::cout << "inserted: " << key << std::endl;
       if (with_global_mutex) {
         mtx.unlock();
       }
@@ -92,6 +93,7 @@ TEST(BPlusTreeContentionTest, BPlusTreeContentionBenchmark) {  // NOLINT
   std::vector<size_t> time_ms_with_mutex;
   std::vector<size_t> time_ms_wo_mutex;
   for (size_t iter = 0; iter < 10; iter++) {
+    std::cout << "iter: " << iter << std::endl;
     bool enable_mutex = iter % 2 == 0;
     auto time = BPlusTreeLockBenchmarkCall(4, enable_mutex);
     if (enable_mutex) {

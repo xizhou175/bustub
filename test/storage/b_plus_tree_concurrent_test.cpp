@@ -28,7 +28,7 @@
 namespace bustub {
 
 using bustub::DiskManagerUnlimitedMemory;
-//std::mutex print_m;
+std::mutex print;
 
 // helper function to launch multiple threads
 template <typename... Args>
@@ -57,11 +57,11 @@ void InsertHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, con
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree->Insert(index_key, rid);
-    //std::scoped_lock lk(print_m);
-    //std::thread::id current_thread_id = std::this_thread::get_id();
-    //std::cout << "Current thread ID: " << current_thread_id << " inserted " << key << std::endl;
-    //std::string graph = tree->DrawBPlusTree();
-    //fmt::print("{}\n", graph);
+    /*std::scoped_lock lk(print);
+    std::thread::id current_thread_id = std::this_thread::get_id();
+    std::cout << "Current thread ID: " << current_thread_id << " inserted " << key << std::endl;
+    std::string graph = tree->DrawBPlusTree();
+    fmt::print("{}\n", graph);*/
   }
   
 }
@@ -101,11 +101,11 @@ void DeleteHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, con
     //std::thread::id current_thread_id = std::this_thread::get_id();
     //std::string graph = tree->DrawBPlusTree();
     //fmt::print("{}\n", graph);
-    //std::scoped_lock lk(print_m);
-    //std::thread::id current_thread_id = std::this_thread::get_id();
-    //std::cout << "Current thread ID: " << current_thread_id << " deleted " << key << std::endl;
-    //std::string graph = tree->DrawBPlusTree();
-    //fmt::print("{}\n", graph);
+    /*std::scoped_lock lk(print);
+    std::thread::id current_thread_id = std::this_thread::get_id();
+    std::cout << "Current thread ID: " << current_thread_id << " deleted " << key << std::endl;
+    std::string graph = tree->DrawBPlusTree();
+    fmt::print("{}\n", graph);*/
   }
 }
 
@@ -187,6 +187,7 @@ static const size_t BPM_SIZE = 50;
 
 void InsertTest1Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
+    std::cout << iter << std::endl;
     // create KeyComparator and index schema
     auto key_schema = ParseCreateStatement("a bigint");
     GenericComparator<8> comparator(key_schema.get());
@@ -202,7 +203,7 @@ void InsertTest1Call() {
 
     // keys to Insert
     std::vector<int64_t> keys;
-    int64_t scale_factor = 100;
+    int64_t scale_factor = 1000;
     for (int64_t key = 1; key < scale_factor; key++) {
       keys.push_back(key);
     }
@@ -213,6 +214,7 @@ void InsertTest1Call() {
     for (auto key : keys) {
       rids.clear();
       index_key.SetFromInteger(key);
+      //std::cout << key << std::endl;
       tree.GetValue(index_key, &rids);
       ASSERT_EQ(rids.size(), 1);
 
@@ -299,6 +301,7 @@ void InsertTest2Call() {
 
 void DeleteTest1Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
+    std::cout << iter << std::endl;
     // create KeyComparator and index schema
     auto key_schema = ParseCreateStatement("a bigint");
     GenericComparator<8> comparator(key_schema.get());
@@ -316,8 +319,8 @@ void DeleteTest1Call() {
     std::vector<int64_t> keys = {1, 2, 3, 4, 5};
     InsertHelper(&tree, keys);
 
-    //std::string graph = tree.DrawBPlusTree();
-    //fmt::print("{}\n", graph);
+    std::string graph = tree.DrawBPlusTree();
+    fmt::print("{}\n", graph);
 
     std::vector<int64_t> remove_keys = {1, 5, 3, 4};
     LaunchParallelTest(2, DeleteHelper, &tree, remove_keys);

@@ -45,6 +45,11 @@ namespace bustub {
 
 struct PrintableBPlusTree;
 
+enum Operation {
+  INSERT,
+  DELETE
+};
+
 /**
  * @brief Definition of the Context class.
  *
@@ -138,9 +143,9 @@ class BPlusTree {
 
   void BatchOpsFromFile(const std::filesystem::path &file_name);
 
-  auto FindLeafPageForRead(const KeyType& key) -> const B_PLUS_TREE_LEAF_PAGE_TYPE*;
+  auto FindLeafPageForRead(const KeyType& key, Context& ctx) -> const B_PLUS_TREE_LEAF_PAGE_TYPE*;
 
-  auto FindLeafPageForWrite(const KeyType& key, Context& ctx) -> B_PLUS_TREE_LEAF_PAGE_TYPE*;
+  auto FindLeafPageForWrite(const KeyType& key, Context& ctx, Operation op) -> B_PLUS_TREE_LEAF_PAGE_TYPE*;
 
   auto Split(BPlusTreePage* page, Context& ctx) -> BPlusTreePage*;
 
@@ -153,6 +158,9 @@ class BPlusTree {
   void Coalesce(BPlusTreePage* node, BPlusTreePage* sibling_node, BPlusTreePage* parent_node, int idx, Context& ctx);
 
   bool CheckIfOnlyChild(int index, BPlusTreePage* parent_page);
+
+  template<typename T>
+  void Drop(T& queue);
 
  private:
   void ToGraph(page_id_t page_id, const BPlusTreePage *page, std::ofstream &out);
