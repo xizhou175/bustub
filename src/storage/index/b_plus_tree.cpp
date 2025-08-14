@@ -53,6 +53,7 @@ auto BPLUSTREE_TYPE::Drop(T& queue) -> void {
   while(!queue.empty()) {
     auto guard = std::move(queue.front());
     if (guard.template As<BPlusTreePage>()->IsRootPage()) {
+      //fmt::println("Dropped root page id latch");
       root_page_id_latch_.unlock();
     }
     queue.pop_front();
@@ -384,7 +385,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key) {
   // Declaration of context instance.
   Context ctx;
   root_page_id_latch_.lock();
-  if (IsEmpty()) {
+  if (header_page_id_ == INVALID_PAGE_ID || IsEmpty()) {
     //ctx.Drop(ctx.write_set_);
     root_page_id_latch_.unlock();
     //Drop(ctx.write_set_);
@@ -439,7 +440,10 @@ void BPLUSTREE_TYPE::JoinOrRedistribute(BPlusTreePage* page, Context& ctx) {
       child_page->SetParentPageId(INVALID_PAGE_ID);
     }
     else if (page->GetSize() == 0 && page->IsLeafPage()) {
-      header_page_id_ = INVALID_PAGE_ID;
+      //fmt::println("Empty leaf page, remove header page");
+      auto header_page = ctx.FindLatchedPage(header_page_id_);
+      auto root_page = reinterpret_cast<BPlusTreeHeaderPage*>(header_page);
+      root_page->root_page_id_ = INVALID_PAGE_ID;
     }
     return;
   }
@@ -598,6 +602,15 @@ void BPLUSTREE_TYPE::Redistribute(BPlusTreePage* page, BPlusTreePage* sibling_pa
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
   root_page_id_latch_.lock_shared();
+  if (IsEmpty()) {
+    root_page_id_latch_.unlock_shared();
+    //fmt::println("Empty tree, return invalid page id");
+    return INDEXITERATOR_TYPE(INVALID_PAGE_ID, bpm_);
+  }
+  //if (header_page_id_ == INVALID_PAGE_ID ){
+  //  root_page_id_latch_.unlock_shared();
+  //  return INDEXITERATOR_TYPE(INVALID_PAGE_ID, bpm_);
+  //}
   ReadPageGuard guard = bpm_->ReadPage(header_page_id_);
   const BPlusTreePage *page = guard.As<BPlusTreePage>();
   while (page->IsLeafPage() == false) {
@@ -610,6 +623,10 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
     }
     guard = bpm_->ReadPage(page_id);
     page = guard.As<BPlusTreePage>();
+  }
+
+  if (page->IsRootPage()) {
+    root_page_id_latch_.unlock_shared();
   }
 
   return INDEXITERATOR_TYPE(page->GetPageId(), bpm_);

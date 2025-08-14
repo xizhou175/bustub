@@ -85,6 +85,7 @@ void TablePage::UpdateTupleMeta(const TupleMeta &meta, const RID &rid) {
  */
 auto TablePage::GetTuple(const RID &rid) const -> std::pair<TupleMeta, Tuple> {
   auto tuple_id = rid.GetSlotNum();
+  //fmt::println("tupleid: {} num_tuples: {}", tuple_id, num_tuples_);
   if (tuple_id >= num_tuples_) {
     throw bustub::Exception("Tuple ID out of range");
   }
