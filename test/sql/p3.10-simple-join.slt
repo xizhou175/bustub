@@ -534,6 +534,9 @@ select * from temp_3 t3 left join temp_2 t2 on t3.colB = t2.colA;
 11 878 integer_null integer_null integer_null
 0 142 integer_null integer_null integer_null
 
+query rowsort
+select distinct(temp_2.colA) from temp_1 inner join temp_2 on temp_1.colC = temp_2.colA
+----
 
 query rowsort +ensure:nlj_init_check
 select * from
