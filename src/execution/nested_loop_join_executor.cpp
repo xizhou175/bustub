@@ -70,9 +70,7 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     }
     for (size_t i = right_idx_.has_value() ? *right_idx_: 0; i < right_tuples_.size(); i++) {
       const auto& right_tuple = right_tuples_[i];
-      fmt::println("right tuple: {}", right_tuple.ToString(&right_executor_->GetOutputSchema()));
       if (matched(&left_tuple_, &right_tuple)) {
-        fmt::println("matched left tuple: {}", left_tuple_.ToString(&left_executor_->GetOutputSchema()));
         for (size_t j = 0; j < left_executor_->GetOutputSchema().GetColumnCount(); j++) {
           values.push_back(left_tuple_.GetValue(&left_executor_->GetOutputSchema(), j));
         }

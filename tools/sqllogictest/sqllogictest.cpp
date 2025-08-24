@@ -83,6 +83,7 @@ auto ProcessExtraOptions(const std::string &sql, bustub::BusTubInstance &instanc
       std::stringstream result;
       auto writer = bustub::SimpleStreamWriter(result);
       instance.ExecuteSql("explain (o) " + sql, writer);
+      //fmt::println("{}", result.str());
 
       if (opt == "ensure:index_scan") {
         if (!bustub::StringUtil::Contains(result.str(), "IndexScan")) {
